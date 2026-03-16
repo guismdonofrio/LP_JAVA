@@ -51,3 +51,19 @@ public class Atv2_Carro {
         meuCarro.desligar();
     }
 }
+
+//Main
+/*
+public class Main {
+    public static void main(String[] args) {
+
+        Carro meuCarro = new Carro("Toyota", "Corolla", "Preto", 2022, "ABC-1234");
+
+        System.out.println("Marca: " + meuCarro.marca);
+
+        meuCarro.ligar();
+        meuCarro.desligar();
+
+    }
+}
+ */
