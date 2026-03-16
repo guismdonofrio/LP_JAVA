@@ -35,3 +35,21 @@ public class Atv5_Farmacia {
         System.out.println("Estoque atual: " + quantidadeMedicamentos);
     }
 }
+
+//Maim
+/*
+public class Main {
+    public static void main(String[] args) {
+
+        Atv5_Farmacia farmacia = new Atv5_Farmacia("Farmacia Central", "Rua A", 50);
+
+        farmacia.mostrarEstoque();
+
+        farmacia.comprarMedicamento(30);
+        farmacia.mostrarEstoque();
+
+        farmacia.venderMedicamento(20);
+        farmacia.mostrarEstoque();
+    }
+}
+ */
