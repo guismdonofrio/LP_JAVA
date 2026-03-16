@@ -35,3 +35,21 @@ public class Atv6_Barraca {
         System.out.println("Quantidade em estoque: " + quantidadeProdutos);
     }
 }
+
+//Main
+/*
+public class Main {
+    public static void main(String[] args) {
+
+        Atv6_Barraca barraca = new Atv6_Barraca("Barraca do João", "Pastel", 30);
+
+        barraca.mostrarEstoque();
+
+        barraca.venderProduto(15);
+        barraca.mostrarEstoque();
+
+        barraca.reporEstoque(25);
+        barraca.mostrarEstoque();
+    }
+}
+ */
