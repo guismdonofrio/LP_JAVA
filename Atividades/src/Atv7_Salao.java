@@ -36,3 +36,21 @@ public class Atv7_Salao {
         System.out.println("Serviço principal: " + servicoPrincipal);
     }
 }
+
+//Main
+/*
+public class Main {
+    public static void main(String[] args) {
+
+        Atv7_Salao salao = new Atv7_Salao("Beleza Total", 4, "Corte de cabelo");
+
+        salao.mostrarInformacoes();
+
+        salao.prestarServico();
+
+        salao.contratarFuncionario();
+
+        salao.mostrarInformacoes();
+    }
+}
+ */
