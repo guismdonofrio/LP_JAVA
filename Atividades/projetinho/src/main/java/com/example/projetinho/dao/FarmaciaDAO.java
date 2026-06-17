@@ -10,37 +10,27 @@ import java.util.Optional;
 
 public class FarmaciaDAO {
 
-    private int proximoId() {
-        String sql = """
-            SELECT MIN(t.id + 1) AS proximo
-            FROM (SELECT 0 AS id UNION SELECT id FROM farmacia) t
-            WHERE t.id + 1 NOT IN (SELECT id FROM farmacia)
-            """;
-        try (Statement st = ConexaoDB.getConexao().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            if (rs.next()) return rs.getInt("proximo");
-        } catch (SQLException e) {
-            throw new RuntimeException("Erro ao calcular próximo ID: " + e.getMessage(), e);
-        }
-        return 1;
-    }
-
+    // Insere uma nova farmácia e retorna o objeto com o ID gerado pelo banco.
+    // Usa RETURN_GENERATED_KEYS para obter o AUTO_INCREMENT corretamente.
     public Farmacia inserir(Farmacia f) {
-        int id = proximoId();
-        String sql = "INSERT INTO farmacia (id, nome, endereco, estoque) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement ps = ConexaoDB.getConexao().prepareStatement(sql)) {
-            ps.setInt   (1, id);
-            ps.setString(2, f.getNome());
-            ps.setString(3, f.getEndereco());
-            ps.setInt   (4, f.getEstoque());
+        String sql = "INSERT INTO farmacia (nome, endereco, estoque) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = ConexaoDB.getConexao()
+                .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            ps.setString(1, f.getNome());
+            ps.setString(2, f.getEndereco());
+            ps.setInt   (3, f.getEstoque());
             ps.executeUpdate();
-            f.setId(id);
+
+            ResultSet chaves = ps.getGeneratedKeys();
+            if (chaves.next()) f.setId(chaves.getInt(1));
         } catch (SQLException e) {
             throw new RuntimeException("Erro ao inserir farmácia: " + e.getMessage(), e);
         }
         return f;
     }
 
+    // Retorna todas as farmácias cadastradas, ordenadas por ID.
     public List<Farmacia> listarTodas() {
         List<Farmacia> lista = new ArrayList<>();
         String sql = "SELECT id, nome, endereco, estoque FROM farmacia ORDER BY id";
@@ -53,6 +43,8 @@ public class FarmaciaDAO {
         return lista;
     }
 
+    // Busca uma farmácia específica pelo ID.
+    // Retorna Optional para indicar que pode não encontrar nada.
     public Optional<Farmacia> buscarPorId(int id) {
         String sql = "SELECT id, nome, endereco, estoque FROM farmacia WHERE id = ?";
         try (PreparedStatement ps = ConexaoDB.getConexao().prepareStatement(sql)) {
@@ -65,6 +57,8 @@ public class FarmaciaDAO {
         return Optional.empty();
     }
 
+    // Atualiza todos os campos da farmácia no banco usando seu ID como chave.
+    // @return true se alguma linha foi alterada
     public boolean atualizar(Farmacia f) {
         String sql = "UPDATE farmacia SET nome = ?, endereco = ?, estoque = ? WHERE id = ?";
         try (PreparedStatement ps = ConexaoDB.getConexao().prepareStatement(sql)) {
@@ -78,6 +72,8 @@ public class FarmaciaDAO {
         }
     }
 
+    // Remove a farmácia com o ID informado.
+    // @return true se alguma linha foi removida
     public boolean deletar(int id) {
         String sql = "DELETE FROM farmacia WHERE id = ?";
         try (PreparedStatement ps = ConexaoDB.getConexao().prepareStatement(sql)) {
@@ -88,8 +84,14 @@ public class FarmaciaDAO {
         }
     }
 
+    // Converte uma linha do ResultSet em um objeto Farmacia.
+    // Centraliza o mapeamento para não repetir esse código em cada método.
     private Farmacia mapear(ResultSet rs) throws SQLException {
-        return new Farmacia(rs.getInt("id"), rs.getString("nome"),
-                rs.getString("endereco"), rs.getInt("estoque"));
+        return new Farmacia(
+                rs.getInt   ("id"),
+                rs.getString("nome"),
+                rs.getString("endereco"),
+                rs.getInt   ("estoque")
+        );
     }
 }

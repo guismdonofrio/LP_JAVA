@@ -12,6 +12,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.util.converter.IntegerStringConverter;
 
 import java.net.URL;
 import java.util.ResourceBundle;
@@ -19,294 +21,351 @@ import java.util.ResourceBundle;
 public class TelaController implements Initializable {
 
     // BARRACA
-    @FXML private TextField  txtNomeBarraca;
-    @FXML private TextField  txtProdutoBarraca;
-    @FXML private TextField  txtQuantidadeBarraca;
-    @FXML private Label      lblBarraca;
+    @FXML private TextField txtNomeBarraca;
+    @FXML private TextField txtProdutoBarraca;
+    @FXML private TextField txtQuantidadeBarraca;
+    @FXML private Label     lblBarraca;
     @FXML private TableView<Barraca>            tabelaBarraca;
     @FXML private TableColumn<Barraca, Integer> colBarracaId;
     @FXML private TableColumn<Barraca, String>  colBarracaNome;
     @FXML private TableColumn<Barraca, String>  colBarracaProduto;
     @FXML private TableColumn<Barraca, Integer> colBarracaEstoque;
 
-    private Barraca barraca;
+    //barraca atualmente selecionada
+    private Barraca barracaSelecionada;
+
+    //operações no banco de dados
     private final BarracaDAO barracaDAO = new BarracaDAO();
 
+    // Carrega  os registros vindos do banco de dados.
     private void carregarTabelaBarraca() {
         tabelaBarraca.setItems(FXCollections.observableArrayList(barracaDAO.listarTodas()));
     }
 
-    // Ao clicar em uma linha, preenche os campos para edição.
+    // Edição TableView.
+    private void configurarColunaEditavelBarraca() {
+
+        colBarracaNome.setCellFactory(TextFieldTableCell.forTableColumn());
+        colBarracaNome.setOnEditCommit(e -> {
+            e.getRowValue().setNome(e.getNewValue());
+            salvarEDesativarEdicaoBarraca(e.getRowValue());
+        });
+
+        colBarracaProduto.setCellFactory(TextFieldTableCell.forTableColumn());
+        colBarracaProduto.setOnEditCommit(e -> {
+            e.getRowValue().setProduto(e.getNewValue());
+            salvarEDesativarEdicaoBarraca(e.getRowValue());
+        });
+
+        colBarracaEstoque.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
+        colBarracaEstoque.setOnEditCommit(e -> {
+            e.getRowValue().setEstoque(e.getNewValue());
+            salvarEDesativarEdicaoBarraca(e.getRowValue());
+        });
+
+        // Começa não editável
+        tabelaBarraca.setEditable(false);
+    }
+
+    // Atualiza os dados e desabilita a edição
+    private void salvarEDesativarEdicaoBarraca(Barraca b) {
+        barracaDAO.atualizar(b);
+        tabelaBarraca.setEditable(false);
+        lblBarraca.setText("Barraca #" + b.getId() + " salva.");
+        carregarTabelaBarraca();
+    }
+    // Configuramento da linha seleciona
     private void configurarSelecaoBarraca() {
         tabelaBarraca.getSelectionModel().selectedItemProperty().addListener((obs, antigo, selecionado) -> {
             if (selecionado != null) {
-                barraca = selecionado;
+                barracaSelecionada = selecionado;
                 txtNomeBarraca.setText(selecionado.getNome());
                 txtProdutoBarraca.setText(selecionado.getProduto());
                 txtQuantidadeBarraca.setText(String.valueOf(selecionado.getEstoque()));
-                lblBarraca.setText("Editando barraca #" + selecionado.getId() + " — altere os campos e clique Vender ou Repor.");
+                lblBarraca.setText("Selecionado: barraca #" + selecionado.getId() + ".");
             }
         });
     }
 
-    private boolean garantirBarraca() {
-        if (barraca == null) {
-            int qtd = lerInt(txtQuantidadeBarraca, lblBarraca);
-            if (qtd < 0) return false;
-            barraca = barracaDAO.inserir(
-                    new Barraca(txtNomeBarraca.getText(), txtProdutoBarraca.getText(), qtd)
-            );
-            lblBarraca.setText("Barraca criada com ID #" + barraca.getId());
-            carregarTabelaBarraca();
+    // Limpa campos para novas informações
+    @FXML public void novaBarraca() {
+        barracaSelecionada = null;
+        tabelaBarraca.setEditable(false);
+        txtNomeBarraca.clear(); txtProdutoBarraca.clear(); txtQuantidadeBarraca.clear();
+        tabelaBarraca.getSelectionModel().clearSelection();
+        lblBarraca.setText("Preencha os campos e clique Inserir para salvar.");
+    }
+
+    // Nova barraca no banco
+    @FXML public void inserirBarraca() {
+        String nome    = txtNomeBarraca.getText().trim();
+        String produto = txtProdutoBarraca.getText().trim();
+        if (nome.isEmpty() || produto.isEmpty()) {
+            lblBarraca.setText("Preencha Nome e Produto antes de inserir.");
+            return;
         }
-        return true;
-    }
-
-    @FXML public void venderBarraca() {
-        if (!garantirBarraca()) return;
         int qtd = lerInt(txtQuantidadeBarraca, lblBarraca);
         if (qtd < 0) return;
-        // Se vier da seleção de linha, sincroniza nome/produto editados também
-        barraca.setNome(txtNomeBarraca.getText());
-        barraca.setProduto(txtProdutoBarraca.getText());
-        lblBarraca.setText(barraca.vender(qtd));
-        barracaDAO.atualizar(barraca);
-        carregarTabelaBarraca();
-    }
-
-    @FXML public void reporBarraca() {
-        if (!garantirBarraca()) return;
-        int qtd = lerInt(txtQuantidadeBarraca, lblBarraca);
-        if (qtd < 0) return;
-        barraca.setNome(txtNomeBarraca.getText());
-        barraca.setProduto(txtProdutoBarraca.getText());
-        lblBarraca.setText(barraca.repor(qtd));
-        barracaDAO.atualizar(barraca);
+        Barraca nova = barracaDAO.inserir(new Barraca(nome, produto, qtd));
+        lblBarraca.setText("Barraca inserida com ID #" + nova.getId() + ".");
         carregarTabelaBarraca();
     }
 
     @FXML public void editarBarraca() {
-        if (barraca == null) { lblBarraca.setText("Selecione uma linha para editar."); return; }
-        barraca.setNome(txtNomeBarraca.getText());
-        barraca.setProduto(txtProdutoBarraca.getText());
-        int qtd = lerInt(txtQuantidadeBarraca, lblBarraca);
-        if (qtd < 0) return;
-        barraca.setEstoque(qtd);
-        barracaDAO.atualizar(barraca);
-        lblBarraca.setText("Barraca #" + barraca.getId() + " atualizada.");
-        carregarTabelaBarraca();
+        if (barracaSelecionada == null) {
+            lblBarraca.setText("Selecione uma linha na tabela primeiro.");
+            return;
+        }
+        tabelaBarraca.setEditable(true);
+        // Encontra e seleciona o índice correto após possível reload
+        int idx = tabelaBarraca.getItems().indexOf(barracaSelecionada);
+        if (idx < 0) {
+            // busca por ID caso a referência tenha mudado
+            for (int i = 0; i < tabelaBarraca.getItems().size(); i++) {
+                if (tabelaBarraca.getItems().get(i).getId() == barracaSelecionada.getId()) { idx = i; break; }
+            }
+        }
+        tabelaBarraca.getSelectionModel().select(idx);
+        tabelaBarraca.edit(idx, colBarracaNome); // abre edição direto na coluna Nome
+        lblBarraca.setText("Edite a célula desejada e pressione ENTER para confirmar.");
     }
 
     @FXML public void deletarBarraca() {
-        if (barraca == null) { lblBarraca.setText("Nenhuma barraca selecionada."); return; }
-        if (barracaDAO.deletar(barraca.getId())) {
-            lblBarraca.setText("Barraca #" + barraca.getId() + " removida.");
-            barraca = null;
-            limparCamposBarraca();
+        if (barracaSelecionada == null) { lblBarraca.setText("Selecione uma linha na tabela."); return; }
+        if (barracaDAO.deletar(barracaSelecionada.getId())) {
+            lblBarraca.setText("Barraca #" + barracaSelecionada.getId() + " removida.");
+            barracaSelecionada = null;
+            txtNomeBarraca.clear(); txtProdutoBarraca.clear(); txtQuantidadeBarraca.clear();
         } else {
-            lblBarraca.setText("Erro: barraca não encontrada.");
+            lblBarraca.setText("Erro ao deletar barraca.");
         }
+        tabelaBarraca.setEditable(false);
         carregarTabelaBarraca();
     }
 
-    private void limparCamposBarraca() {
-        txtNomeBarraca.clear();
-        txtProdutoBarraca.clear();
-        txtQuantidadeBarraca.clear();
-        tabelaBarraca.getSelectionModel().clearSelection();
-    }
-
     // FARMÁCIA
-    @FXML private TextField  txtNomeFarmacia;
-    @FXML private TextField  txtEnderecoFarmacia;
-    @FXML private TextField  txtQuantidadeFarmacia;
-    @FXML private Label      lblFarmacia;
+    @FXML private TextField txtNomeFarmacia;
+    @FXML private TextField txtEnderecoFarmacia;
+    @FXML private TextField txtQuantidadeFarmacia;
+    @FXML private Label     lblFarmacia;
     @FXML private TableView<Farmacia>            tabelaFarmacia;
     @FXML private TableColumn<Farmacia, Integer> colFarmaciaId;
     @FXML private TableColumn<Farmacia, String>  colFarmaciaNome;
     @FXML private TableColumn<Farmacia, String>  colFarmaciaEndereco;
     @FXML private TableColumn<Farmacia, Integer> colFarmaciaEstoque;
 
-    private Farmacia farmacia;
+    private Farmacia farmaciaSelecionada;
     private final FarmaciaDAO farmaciaDAO = new FarmaciaDAO();
 
     private void carregarTabelaFarmacia() {
         tabelaFarmacia.setItems(FXCollections.observableArrayList(farmaciaDAO.listarTodas()));
     }
 
+    private void configurarColunaEditavelFarmacia() {
+        colFarmaciaNome.setCellFactory(TextFieldTableCell.forTableColumn());
+        colFarmaciaNome.setOnEditCommit(e -> {
+            e.getRowValue().setNome(e.getNewValue());
+            salvarEDesativarEdicaoFarmacia(e.getRowValue());
+        });
+
+        colFarmaciaEndereco.setCellFactory(TextFieldTableCell.forTableColumn());
+        colFarmaciaEndereco.setOnEditCommit(e -> {
+            e.getRowValue().setEndereco(e.getNewValue());
+            salvarEDesativarEdicaoFarmacia(e.getRowValue());
+        });
+
+        colFarmaciaEstoque.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
+        colFarmaciaEstoque.setOnEditCommit(e -> {
+            e.getRowValue().setEstoque(e.getNewValue());
+            salvarEDesativarEdicaoFarmacia(e.getRowValue());
+        });
+
+        tabelaFarmacia.setEditable(false);
+    }
+
+    private void salvarEDesativarEdicaoFarmacia(Farmacia f) {
+        farmaciaDAO.atualizar(f);
+        tabelaFarmacia.setEditable(false);
+        lblFarmacia.setText("Farmácia #" + f.getId() + " salva.");
+        carregarTabelaFarmacia();
+    }
+
     private void configurarSelecaoFarmacia() {
         tabelaFarmacia.getSelectionModel().selectedItemProperty().addListener((obs, antigo, selecionado) -> {
             if (selecionado != null) {
-                farmacia = selecionado;
+                farmaciaSelecionada = selecionado;
                 txtNomeFarmacia.setText(selecionado.getNome());
                 txtEnderecoFarmacia.setText(selecionado.getEndereco());
                 txtQuantidadeFarmacia.setText(String.valueOf(selecionado.getEstoque()));
-                lblFarmacia.setText("Editando farmácia #" + selecionado.getId() + " — altere os campos e clique Comprar ou Vender.");
+                lblFarmacia.setText("Selecionado: farmácia #" + selecionado.getId() + ".");
             }
         });
     }
 
-    private boolean garantirFarmacia() {
-        if (farmacia == null) {
-            int qtd = lerInt(txtQuantidadeFarmacia, lblFarmacia);
-            if (qtd < 0) return false;
-            farmacia = farmaciaDAO.inserir(
-                    new Farmacia(txtNomeFarmacia.getText(), txtEnderecoFarmacia.getText(), qtd)
-            );
-            lblFarmacia.setText("Farmácia criada com ID #" + farmacia.getId());
-            carregarTabelaFarmacia();
+    @FXML public void novaFarmacia() {
+        farmaciaSelecionada = null;
+        tabelaFarmacia.setEditable(false);
+        txtNomeFarmacia.clear(); txtEnderecoFarmacia.clear(); txtQuantidadeFarmacia.clear();
+        tabelaFarmacia.getSelectionModel().clearSelection();
+        lblFarmacia.setText("Preencha os campos e clique Inserir para salvar.");
+    }
+
+    @FXML public void inserirFarmacia() {
+        String nome     = txtNomeFarmacia.getText().trim();
+        String endereco = txtEnderecoFarmacia.getText().trim();
+        if (nome.isEmpty() || endereco.isEmpty()) {
+            lblFarmacia.setText("Preencha Nome e Endereço antes de inserir.");
+            return;
         }
-        return true;
-    }
-
-    @FXML public void comprarFarmacia() {
-        if (!garantirFarmacia()) return;
         int qtd = lerInt(txtQuantidadeFarmacia, lblFarmacia);
         if (qtd < 0) return;
-        farmacia.setNome(txtNomeFarmacia.getText());
-        farmacia.setEndereco(txtEnderecoFarmacia.getText());
-        lblFarmacia.setText(farmacia.comprar(qtd));
-        farmaciaDAO.atualizar(farmacia);
-        carregarTabelaFarmacia();
-    }
-
-    @FXML public void venderFarmacia() {
-        if (!garantirFarmacia()) return;
-        int qtd = lerInt(txtQuantidadeFarmacia, lblFarmacia);
-        if (qtd < 0) return;
-        farmacia.setNome(txtNomeFarmacia.getText());
-        farmacia.setEndereco(txtEnderecoFarmacia.getText());
-        lblFarmacia.setText(farmacia.vender(qtd));
-        farmaciaDAO.atualizar(farmacia);
+        Farmacia nova = farmaciaDAO.inserir(new Farmacia(nome, endereco, qtd));
+        lblFarmacia.setText("Farmácia inserida com ID #" + nova.getId() + ".");
         carregarTabelaFarmacia();
     }
 
     @FXML public void editarFarmacia() {
-        if (farmacia == null) { lblFarmacia.setText("Selecione uma linha para editar."); return; }
-        farmacia.setNome(txtNomeFarmacia.getText());
-        farmacia.setEndereco(txtEnderecoFarmacia.getText());
-        int qtd = lerInt(txtQuantidadeFarmacia, lblFarmacia);
-        if (qtd < 0) return;
-        farmacia.setEstoque(qtd);
-        farmaciaDAO.atualizar(farmacia);
-        lblFarmacia.setText("Farmácia #" + farmacia.getId() + " atualizada.");
-        carregarTabelaFarmacia();
+        if (farmaciaSelecionada == null) {
+            lblFarmacia.setText("Selecione uma linha na tabela primeiro.");
+            return;
+        }
+        tabelaFarmacia.setEditable(true);
+        int idx = tabelaFarmacia.getItems().indexOf(farmaciaSelecionada);
+        if (idx < 0) {
+            for (int i = 0; i < tabelaFarmacia.getItems().size(); i++) {
+                if (tabelaFarmacia.getItems().get(i).getId() == farmaciaSelecionada.getId()) { idx = i; break; }
+            }
+        }
+        tabelaFarmacia.getSelectionModel().select(idx);
+        tabelaFarmacia.edit(idx, colFarmaciaNome);
+        lblFarmacia.setText("Edite a célula desejada e pressione ENTER para confirmar.");
     }
 
     @FXML public void deletarFarmacia() {
-        if (farmacia == null) { lblFarmacia.setText("Nenhuma farmácia selecionada."); return; }
-        if (farmaciaDAO.deletar(farmacia.getId())) {
-            lblFarmacia.setText("Farmácia #" + farmacia.getId() + " removida.");
-            farmacia = null;
-            limparCamposFarmacia();
+        if (farmaciaSelecionada == null) { lblFarmacia.setText("Selecione uma linha na tabela."); return; }
+        if (farmaciaDAO.deletar(farmaciaSelecionada.getId())) {
+            lblFarmacia.setText("Farmácia #" + farmaciaSelecionada.getId() + " removida.");
+            farmaciaSelecionada = null;
+            txtNomeFarmacia.clear(); txtEnderecoFarmacia.clear(); txtQuantidadeFarmacia.clear();
         } else {
-            lblFarmacia.setText("Erro: farmácia não encontrada.");
+            lblFarmacia.setText("Erro ao deletar farmácia.");
         }
+        tabelaFarmacia.setEditable(false);
         carregarTabelaFarmacia();
     }
 
-    private void limparCamposFarmacia() {
-        txtNomeFarmacia.clear();
-        txtEnderecoFarmacia.clear();
-        txtQuantidadeFarmacia.clear();
-        tabelaFarmacia.getSelectionModel().clearSelection();
-    }
-
     // SALÃO
-    @FXML private TextField  txtNomeSalao;
-    @FXML private TextField  txtFuncionariosSalao;
-    @FXML private TextField  txtServicoSalao;
-    @FXML private Label      lblSalao;
+    @FXML private TextField txtNomeSalao;
+    @FXML private TextField txtFuncionariosSalao;
+    @FXML private TextField txtServicoSalao;
+    @FXML private Label     lblSalao;
     @FXML private TableView<Salao>            tabelaSalao;
     @FXML private TableColumn<Salao, Integer> colSalaoId;
     @FXML private TableColumn<Salao, String>  colSalaoNome;
     @FXML private TableColumn<Salao, Integer> colSalaoFuncionarios;
     @FXML private TableColumn<Salao, String>  colSalaoServico;
 
-    private Salao salao;
+    private Salao salaoSelecionado;
     private final SalaoDAO salaoDAO = new SalaoDAO();
 
     private void carregarTabelaSalao() {
         tabelaSalao.setItems(FXCollections.observableArrayList(salaoDAO.listarTodos()));
     }
 
+    private void configurarColunaEditavelSalao() {
+        colSalaoNome.setCellFactory(TextFieldTableCell.forTableColumn());
+        colSalaoNome.setOnEditCommit(e -> {
+            e.getRowValue().setNome(e.getNewValue());
+            salvarEDesativarEdicaoSalao(e.getRowValue());
+        });
+
+        colSalaoFuncionarios.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
+        colSalaoFuncionarios.setOnEditCommit(e -> {
+            e.getRowValue().setFuncionarios(e.getNewValue());
+            salvarEDesativarEdicaoSalao(e.getRowValue());
+        });
+
+        colSalaoServico.setCellFactory(TextFieldTableCell.forTableColumn());
+        colSalaoServico.setOnEditCommit(e -> {
+            e.getRowValue().setServico(e.getNewValue());
+            salvarEDesativarEdicaoSalao(e.getRowValue());
+        });
+
+        tabelaSalao.setEditable(false);
+    }
+
+    private void salvarEDesativarEdicaoSalao(Salao s) {
+        salaoDAO.atualizar(s);
+        tabelaSalao.setEditable(false);
+        lblSalao.setText("Salão #" + s.getId() + " salvo.");
+        carregarTabelaSalao();
+    }
+
     private void configurarSelecaoSalao() {
         tabelaSalao.getSelectionModel().selectedItemProperty().addListener((obs, antigo, selecionado) -> {
             if (selecionado != null) {
-                salao = selecionado;
+                salaoSelecionado = selecionado;
                 txtNomeSalao.setText(selecionado.getNome());
                 txtFuncionariosSalao.setText(String.valueOf(selecionado.getFuncionarios()));
                 txtServicoSalao.setText(selecionado.getServico());
-                lblSalao.setText("Editando salão #" + selecionado.getId() + " — altere os campos e clique Contratar.");
+                lblSalao.setText("Selecionado: salão #" + selecionado.getId() + ".");
             }
         });
     }
 
-    private boolean garantirSalao() {
-        if (salao == null) {
-            int qtd = lerInt(txtFuncionariosSalao, lblSalao);
-            if (qtd < 0) return false;
-            salao = salaoDAO.inserir(
-                    new Salao(txtNomeSalao.getText(), qtd, txtServicoSalao.getText())
-            );
-            lblSalao.setText("Salão criado com ID #" + salao.getId());
-            carregarTabelaSalao();
+    @FXML public void novoSalao() {
+        salaoSelecionado = null;
+        tabelaSalao.setEditable(false);
+        txtNomeSalao.clear(); txtFuncionariosSalao.clear(); txtServicoSalao.clear();
+        tabelaSalao.getSelectionModel().clearSelection();
+        lblSalao.setText("Preencha os campos e clique Inserir para salvar.");
+    }
+
+    @FXML public void inserirSalao() {
+        String nome    = txtNomeSalao.getText().trim();
+        String servico = txtServicoSalao.getText().trim();
+        if (nome.isEmpty() || servico.isEmpty()) {
+            lblSalao.setText("Preencha Nome e Serviço antes de inserir.");
+            return;
         }
-        return true;
-    }
-
-    @FXML public void prestarServico() {
-        if (!garantirSalao()) return;
-        salao.setNome(txtNomeSalao.getText());
-        salao.setServico(txtServicoSalao.getText());
-        salaoDAO.atualizar(salao);
-        lblSalao.setText(salao.prestarServico());
-        carregarTabelaSalao();
-    }
-
-    @FXML public void contratar() {
-        if (!garantirSalao()) return;
         int qtd = lerInt(txtFuncionariosSalao, lblSalao);
         if (qtd < 0) return;
-        salao.setNome(txtNomeSalao.getText());
-        salao.setServico(txtServicoSalao.getText());
-        lblSalao.setText(salao.contratar(qtd));
-        salaoDAO.atualizar(salao);
+        Salao novo = salaoDAO.inserir(new Salao(nome, qtd, servico));
+        lblSalao.setText("Salão inserido com ID #" + novo.getId() + ".");
         carregarTabelaSalao();
     }
 
     @FXML public void editarSalao() {
-        if (salao == null) { lblSalao.setText("Selecione uma linha para editar."); return; }
-        salao.setNome(txtNomeSalao.getText());
-        salao.setServico(txtServicoSalao.getText());
-        int qtd = lerInt(txtFuncionariosSalao, lblSalao);
-        if (qtd < 0) return;
-        salao.setFuncionarios(qtd);
-        salaoDAO.atualizar(salao);
-        lblSalao.setText("Salão #" + salao.getId() + " atualizado.");
-        carregarTabelaSalao();
+        if (salaoSelecionado == null) {
+            lblSalao.setText("Selecione uma linha na tabela primeiro.");
+            return;
+        }
+        tabelaSalao.setEditable(true);
+        int idx = tabelaSalao.getItems().indexOf(salaoSelecionado);
+        if (idx < 0) {
+            for (int i = 0; i < tabelaSalao.getItems().size(); i++) {
+                if (tabelaSalao.getItems().get(i).getId() == salaoSelecionado.getId()) { idx = i; break; }
+            }
+        }
+        tabelaSalao.getSelectionModel().select(idx);
+        tabelaSalao.edit(idx, colSalaoNome);
+        lblSalao.setText("Edite a célula desejada e pressione ENTER para confirmar.");
     }
 
     @FXML public void deletarSalao() {
-        if (salao == null) { lblSalao.setText("Nenhum salão selecionado."); return; }
-        if (salaoDAO.deletar(salao.getId())) {
-            lblSalao.setText("Salão #" + salao.getId() + " removido.");
-            salao = null;
-            limparCamposSalao();
+        if (salaoSelecionado == null) { lblSalao.setText("Selecione uma linha na tabela."); return; }
+        if (salaoDAO.deletar(salaoSelecionado.getId())) {
+            lblSalao.setText("Salão #" + salaoSelecionado.getId() + " removido.");
+            salaoSelecionado = null;
+            txtNomeSalao.clear(); txtFuncionariosSalao.clear(); txtServicoSalao.clear();
         } else {
-            lblSalao.setText("Erro: salão não encontrado.");
+            lblSalao.setText("Erro ao deletar salão.");
         }
+        tabelaSalao.setEditable(false);
         carregarTabelaSalao();
     }
 
-    private void limparCamposSalao() {
-        txtNomeSalao.clear();
-        txtFuncionariosSalao.clear();
-        txtServicoSalao.clear();
-        tabelaSalao.getSelectionModel().clearSelection();
-    }
-
-    // Inicialização
+    // INICIALIZAÇÃO
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         // Barraca
@@ -314,6 +373,7 @@ public class TelaController implements Initializable {
         colBarracaNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
         colBarracaProduto.setCellValueFactory(new PropertyValueFactory<>("produto"));
         colBarracaEstoque.setCellValueFactory(new PropertyValueFactory<>("estoque"));
+        configurarColunaEditavelBarraca();
         configurarSelecaoBarraca();
         carregarTabelaBarraca();
 
@@ -322,6 +382,7 @@ public class TelaController implements Initializable {
         colFarmaciaNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
         colFarmaciaEndereco.setCellValueFactory(new PropertyValueFactory<>("endereco"));
         colFarmaciaEstoque.setCellValueFactory(new PropertyValueFactory<>("estoque"));
+        configurarColunaEditavelFarmacia();
         configurarSelecaoFarmacia();
         carregarTabelaFarmacia();
 
@@ -330,11 +391,12 @@ public class TelaController implements Initializable {
         colSalaoNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
         colSalaoFuncionarios.setCellValueFactory(new PropertyValueFactory<>("funcionarios"));
         colSalaoServico.setCellValueFactory(new PropertyValueFactory<>("servico"));
+        configurarColunaEditavelSalao();
         configurarSelecaoSalao();
         carregarTabelaSalao();
     }
 
-    // Utilitários
+    // UTILITÁRIOS
     private int lerInt(TextField txt, Label lbl) {
         try {
             int v = Integer.parseInt(txt.getText().trim());
